@@ -148,16 +148,24 @@ def search_transactions(year: int, field: str, keyword_text: str):
 
 
 # --------------------------------------------------------------------- Gemini
+_CLIENTS = {}
+
+
 def _client(api_key: str):
-    from google import genai          # imported lazily so the helpers above work without it
-    return genai.Client(api_key=api_key)
+    """One long-lived client per key. (A client that is created and immediately garbage-collected
+    closes its connection, which causes 'Cannot send a request, as the client has been closed'.)"""
+    if api_key not in _CLIENTS:
+        from google import genai          # imported lazily so the helpers above work without it
+        _CLIENTS[api_key] = genai.Client(api_key=api_key)
+    return _CLIENTS[api_key]
 
 
 def gemini_text(api_key: str, model: str, prompt: str, system: str | None = None) -> str:
     from google.genai import types
+    client = _client(api_key)             # keep a reference for the whole call
     cfg = types.GenerateContentConfig(temperature=0, system_instruction=system) if system else \
           types.GenerateContentConfig(temperature=0)
-    resp = _client(api_key).models.generate_content(model=model, contents=prompt, config=cfg)
+    resp = client.models.generate_content(model=model, contents=prompt, config=cfg)
     return resp.text or ""
 
 
